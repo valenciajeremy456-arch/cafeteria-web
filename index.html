@@ -4,37 +4,43 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pantalla de Pedidos - Cafetería</title>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; padding: 20px; background: #121212; color: #fff; }
     h1 { color: #f97316; }
     .card { background: #1e1e1e; padding: 15px; margin-bottom: 12px; border-radius: 8px; border-left: 5px solid #f97316; }
     .estado { color: #22c55e; font-weight: bold; margin-bottom: 20px; }
+    .hora { font-size: 13px; color: #888; margin-bottom: 8px; }
+    .mensaje { font-size: 18px; white-space: pre-line; margin: 0; line-height: 1.4; }
   </style>
 </head>
 <body>
   <h1>☕ Pedidos Entrantes - Cafetería</h1>
-  <div id="estado" class="estado">Conectando al servidor MQTT...</div>
+  <div id="estado" class="estado">🟢 Escuchando pedidos en vivo...</div>
   <div id="lista-pedidos"></div>
 
   <script>
-    const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+    const eventSource = new EventSource('https://ntfy.sh/cafeteria_pedidos_valencia/sse');
 
-    client.on('connect', () => {
-      document.getElementById('estado').innerText = '🟢 Conectado y escuchando pedidos';
-      client.subscribe('cafeteria/pedidos');
-    });
-
-    client.on('message', (topic, message) => {
-      const contenedor = document.getElementById('lista-pedidos');
-      const tarjeta = document.createElement('div');
-      tarjeta.className = 'card';
-      
-      const hora = new Date().toLocaleTimeString();
-      tarjeta.innerHTML = `<strong>Hora: ${hora}</strong><p>${message.toString()}</p>`;
-      
-      contenedor.prepend(tarjeta);
-    });
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.event === 'message') {
+          const contenedor = document.getElementById('lista-pedidos');
+          const tarjeta = document.createElement('div');
+          tarjeta.className = 'card';
+          
+          const hora = new Date().toLocaleTimeString();
+          tarjeta.innerHTML = `
+            <div class="hora">Hora: ${hora}</div>
+            <p class="mensaje">${data.message}</p>
+          `;
+          
+          contenedor.prepend(tarjeta);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
   </script>
 </body>
 </html>
