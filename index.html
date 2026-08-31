@@ -1,46 +1,192 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pantalla de Pedidos - Cafetería</title>
-  <style>
-    body { font-family: system-ui, sans-serif; padding: 20px; background: #121212; color: #fff; }
-    h1 { color: #f97316; }
-    .card { background: #1e1e1e; padding: 15px; margin-bottom: 12px; border-radius: 8px; border-left: 5px solid #f97316; }
-    .estado { color: #22c55e; font-weight: bold; margin-bottom: 20px; }
-    .hora { font-size: 13px; color: #888; margin-bottom: 8px; }
-    .mensaje { font-size: 18px; white-space: pre-line; margin: 0; line-height: 1.4; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantalla de Pedidos - Cafetería</title>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #ff6b00;
+            margin-top: 0;
+        }
+
+        .estado {
+            color: #00ff66;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        #lista-pedidos {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .pedido-card {
+            background-color: #2a2a2a;
+            border-left: 6px solid #ff6b00;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .pedido-card:hover {
+            background-color: #333333;
+        }
+
+        .pedido-card.desapareciendo {
+            opacity: 0;
+            transform: translateX(50px);
+        }
+
+        .hora {
+            color: #aaaaaa;
+            font-size: 0.85em;
+            margin-bottom: 6px;
+        }
+
+        .cliente {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 4px;
+        }
+
+        .pedido {
+            font-size: 1.05em;
+            color: #e0e0e0;
+        }
+
+        .tip {
+            color: #888888;
+            font-size: 0.75em;
+            margin-top: 8px;
+            font-style: italic;
+        }
+    </style>
 </head>
 <body>
-  <h1>☕ Pedidos Entrantes - Cafetería</h1>
-  <div id="estado" class="estado">🟢 Escuchando pedidos en vivo...</div>
-  <div id="lista-pedidos"></div>
 
-  <script>
-    const eventSource = new EventSource('https://ntfy.sh/cafeteria_pedidos_valencia/sse');
+    <h1>☕ Pedidos Entrantes - Cafetería</h1>
+    <div class="estado">🟢 Escuchando pedidos en vivo...</div>
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.event === 'message') {
-          const contenedor = document.getElementById('lista-pedidos');
-          const tarjeta = document.createElement('div');
-          tarjeta.className = 'card';
-          
-          const hora = new Date().toLocaleTimeString();
-          tarjeta.innerHTML = `
-            <div class="hora">Hora: ${hora}</div>
-            <p class="mensaje">${data.message}</p>
-          `;
-          
-          contenedor.prepend(tarjeta);
+    <div id="lista-pedidos"></div>
+
+    <script>
+        // Tópico exacto
+        const NTFY_TOPIC = 'cafeteria_pedidos_valencia';
+        const NTFY_URL = `https://ntfy.sh/${NTFY_TOPIC}`;
+
+        const contenedor = document.getElementById('lista-pedidos');
+        const pedidosActivos = new Map();
+
+        // 1. Recibir nuevos pedidos en tiempo real (SSE)
+        const eventSource = new EventSource(`${NTFY_URL}/sse`);
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.event === 'message') {
+                    agregarOActualizarPedido(data);
+                }
+            } catch (e) {
+                console.error("Error procesando mensaje:", e);
+            }
+        };
+
+        function agregarOActualizarPedido(data) {
+            if (pedidosActivos.has(data.id)) return;
+
+            const card = document.createElement('div');
+            card.className = 'pedido-card';
+            card.id = `pedido-${data.id}`;
+
+            const horaFormateada = new Date(data.time * 1000).toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+
+            card.innerHTML = `
+                <div class="hora">Hora: ${horaFormateada}</div>
+                <div class="cliente">👤 Cliente: ${data.title || 'Cliente'}</div>
+                <div class="pedido">☕ Pedido: ${data.message}</div>
+                <div class="tip">(Toca o haz clic para marcar como listo)</div>
+            `;
+
+            // Permite borrar haciendo clic en la tarjeta directamente en la pantalla
+            card.addEventListener('click', () => {
+                eliminarTarjeta(data.id);
+            });
+
+            contenedor.prepend(card);
+            pedidosActivos.set(data.id, card);
         }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-  </script>
+
+        function eliminarTarjeta(id) {
+            const card = pedidosActivos.get(id);
+            if (card) {
+                card.classList.add('desapareciendo');
+                setTimeout(() => {
+                    card.remove();
+                    pedidosActivos.delete(id);
+                }, 300);
+            }
+        }
+
+        // 2. Comprobar periódicamente en ntfy los mensajes borrados (Forzando sin Caché)
+        async function sincronizarConNtfy() {
+            try {
+                // _t=${Date.now()} y cache: 'no-store' evitan que el navegador guarde la respuesta vieja
+                const res = await fetch(`${NTFY_URL}/json?poll=1&_t=${Date.now()}`, {
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+
+                if (!res.ok) return;
+
+                const text = await res.text();
+                const lineas = text.trim().split('\n').filter(l => l.trim().length > 0);
+                
+                const mensajesEnServidor = [];
+                for (const linea of lineas) {
+                    try {
+                        const obj = JSON.parse(linea);
+                        if (obj.event === 'message') {
+                            mensajesEnServidor.push(obj);
+                        }
+                    } catch(e) {}
+                }
+
+                const idsEnServidor = new Set(mensajesEnServidor.map(m => m.id));
+
+                // Si una tarjeta está en pantalla pero ya fue borrada en ntfy -> Quitarla
+                pedidosActivos.forEach((_, id) => {
+                    if (!idsEnServidor.has(id)) {
+                        eliminarTarjeta(id);
+                    }
+                });
+
+                // Cargar mensajes vigentes
+                mensajesEnServidor.forEach(msg => agregarOActualizarPedido(msg));
+
+            } catch (err) {
+                console.error("Error en sincronización:", err);
+            }
+        }
+
+        // Consultar borrados cada 2 segundos
+        setInterval(sincronizarConNtfy, 2000);
+        sincronizarConNtfy();
+    </script>
 </body>
 </html>
