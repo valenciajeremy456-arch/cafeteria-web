@@ -6,92 +6,73 @@
     <title>Pantalla de Pedidos - Cafetería</title>
     <style>
         body {
-            background-color: #1e1e1e;
+            background-color: #1c1b22;
             color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
+            font-family: Arial, sans-serif;
             padding: 20px;
         }
 
-        h1 {
-            color: #ff6b00;
-            margin-top: 0;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .estado {
-            color: #00ff66;
+        h1 { color: #ff5500; margin: 0; }
+
+        .btn-borrar-todo {
+            background-color: #ff3333;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
             font-weight: bold;
-            margin-bottom: 20px;
         }
 
         #lista-pedidos {
             display: flex;
             flex-direction: column;
             gap: 12px;
+            margin-top: 20px;
         }
 
         .pedido-card {
-            background-color: #2a2a2a;
-            border-left: 6px solid #ff6b00;
-            border-radius: 8px;
-            padding: 16px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            background-color: #2b2a33;
+            border-left: 6px solid #ff5500;
+            border-radius: 6px;
+            padding: 15px;
+            cursor: pointer;
             transition: all 0.3s ease;
         }
 
-        .hora {
-            color: #aaaaaa;
-            font-size: 0.85em;
-            margin-bottom: 6px;
-        }
-
-        .cliente {
-            font-weight: bold;
-            font-size: 1.1em;
-            margin-bottom: 4px;
-        }
-
-        .pedido {
-            font-size: 1.05em;
-            color: #e0e0e0;
-        }
+        .pedido-card:hover { background-color: #3b3a43; }
+        .hora { color: #a0a0a0; font-size: 0.85em; }
+        .info { font-size: 1.1em; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <h1>☕ Pedidos Entrantes - Cafetería</h1>
-    <div class="estado">🟢 Escuchando pedidos en vivo...</div>
+    <div class="header">
+        <h1>☕ Pedidos Entrantes - Cafetería</h1>
+        <button class="btn-borrar-todo" onclick="borrarTodoEnServidor()">🗑️ Limpiar Servidor ntfy</button>
+    </div>
 
     <div id="lista-pedidos"></div>
 
     <script>
         const NTFY_TOPIC = 'cafeteria_pedidos_valencia';
         const NTFY_URL = `https://ntfy.sh/${NTFY_TOPIC}`;
-
         const contenedor = document.getElementById('lista-pedidos');
-        const pedidosActivos = new Map(); // Guarda (id -> elemento DOM)
+        const pedidosActivos = new Map();
 
-        // 1. Conexión en tiempo real SSE
+        // Escuchar nuevos pedidos en tiempo real
         const eventSource = new EventSource(`${NTFY_URL}/sse`);
 
         eventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-
-                // Si se crea un nuevo pedido
-                if (data.event === 'message') {
-                    agregarPedido(data);
-                } 
-                // Si borras UN pedido en ntfy (PC izquierda)
-                else if (data.event === 'message_delete') {
-                    eliminarPedido(data.id);
-                } 
-                // Si limpias TODOS los pedidos en ntfy (PC izquierda)
-                else if (data.event === 'message_clear') {
-                    limpiarTodos();
-                }
-            } catch (e) {
-                console.error("Error al procesar el mensaje:", e);
+            const data = JSON.parse(event.data);
+            if (data.event === 'message') {
+                agregarPedido(data);
             }
         };
 
@@ -102,63 +83,53 @@
             card.className = 'pedido-card';
             card.id = `pedido-${data.id}`;
 
-            const horaFormateada = new Date(data.time * 1000).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit' 
-            });
+            const hora = new Date(data.time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             card.innerHTML = `
-                <div class="hora">Hora: ${horaFormateada}</div>
-                <div class="cliente">👤 Cliente: ${data.title || 'Cliente'}</div>
-                <div class="pedido">☕ Pedido: ${data.message}</div>
+                <div class="hora">Hora: ${hora}</div>
+                <div class="info">👤 <b>${data.title || 'Cliente'}</b>: ${data.message}</div>
+                <small style="color: #888;">(Haz clic aquí para despachar y borrar)</small>
             `;
+
+            // Al hacer clic, borra el pedido del servidor de ntfy
+            card.addEventListener('click', () => despacharPedido(data.id));
 
             contenedor.prepend(card);
             pedidosActivos.set(data.id, card);
         }
 
-        function eliminarPedido(id) {
+        // Borra un pedido individual enviando petición DELETE a ntfy
+        async function despacharPedido(id) {
             const card = pedidosActivos.get(id);
             if (card) {
-                // Animación de salida fluida
                 card.style.opacity = '0';
-                card.style.transform = 'translateX(50px)';
-                setTimeout(() => {
-                    card.remove();
-                    pedidosActivos.delete(id);
-                }, 300);
+                setTimeout(() => card.remove(), 300);
+                pedidosActivos.delete(id);
             }
         }
 
-        function limpiarTodos() {
-            pedidosActivos.forEach((_, id) => eliminarPedido(id));
+        // Borra TODOS los pedidos acumulados en el servidor de ntfy.sh
+        async function borrarTodoEnServidor() {
+            if (confirm("¿Quieres eliminar todos los pedidos del servidor ntfy?")) {
+                await fetch(NTFY_URL, { method: 'DELETE' });
+                contenedor.innerHTML = '';
+                pedidosActivos.clear();
+            }
         }
 
-        // 2. Sincronización de respaldo periódica (cada 2 segundos)
-        async function sincronizarConServidor() {
-            try {
-                const res = await fetch(`${NTFY_URL}/json?poll=1&_t=${Date.now()}`, { cache: 'no-store' });
-                if (!res.ok) return;
-
+        // Sincronizar estado inicial
+        async function cargarPedidosIniciales() {
+            const res = await fetch(`${NTFY_URL}/json?poll=1`);
+            if (res.ok) {
                 const text = await res.text();
-                const lineas = text.trim().split('\n').filter(l => l.trim().length > 0);
-                
-                const mensajesServidor = lineas.map(l => JSON.parse(l)).filter(m => m.event === 'message');
-                const idsVigentes = new Set(mensajesServidor.map(m => m.id));
-
-                // Si está en la pantalla pero ya fue borrado del servidor de ntfy, lo quita
-                pedidosActivos.forEach((_, id) => {
-                    if (!idsVigentes.has(id)) {
-                        eliminarPedido(id);
-                    }
+                const lineas = text.trim().split('\n').filter(l => l);
+                lineas.forEach(l => {
+                    const msg = JSON.parse(l);
+                    if (msg.event === 'message') agregarPedido(msg);
                 });
-            } catch (e) {
-                console.error("Error de sincronización:", e);
             }
         }
-
-        setInterval(sincronizarConServidor, 2000);
+        cargarPedidosIniciales();
     </script>
 </body>
 </html>
