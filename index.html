@@ -35,18 +35,8 @@
             border-left: 6px solid #ff6b00;
             border-radius: 8px;
             padding: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-
-        .pedido-card:hover {
-            background-color: #333333;
-        }
-
-        .pedido-card.desapareciendo {
-            opacity: 0;
-            transform: translateX(50px);
+            transition: all 0.3s ease;
         }
 
         .hora {
@@ -65,13 +55,6 @@
             font-size: 1.05em;
             color: #e0e0e0;
         }
-
-        .tip {
-            color: #888888;
-            font-size: 0.75em;
-            margin-top: 8px;
-            font-style: italic;
-        }
     </style>
 </head>
 <body>
@@ -82,28 +65,37 @@
     <div id="lista-pedidos"></div>
 
     <script>
-        // Tópico exacto
         const NTFY_TOPIC = 'cafeteria_pedidos_valencia';
         const NTFY_URL = `https://ntfy.sh/${NTFY_TOPIC}`;
 
         const contenedor = document.getElementById('lista-pedidos');
-        const pedidosActivos = new Map();
+        const pedidosActivos = new Map(); // Guarda (id -> elemento DOM)
 
-        // 1. Recibir nuevos pedidos en tiempo real (SSE)
+        // 1. Conexión en tiempo real SSE
         const eventSource = new EventSource(`${NTFY_URL}/sse`);
 
         eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+
+                // Si se crea un nuevo pedido
                 if (data.event === 'message') {
-                    agregarOActualizarPedido(data);
+                    agregarPedido(data);
+                } 
+                // Si borras UN pedido en ntfy (PC izquierda)
+                else if (data.event === 'message_delete') {
+                    eliminarPedido(data.id);
+                } 
+                // Si limpias TODOS los pedidos en ntfy (PC izquierda)
+                else if (data.event === 'message_clear') {
+                    limpiarTodos();
                 }
             } catch (e) {
-                console.error("Error procesando mensaje:", e);
+                console.error("Error al procesar el mensaje:", e);
             }
         };
 
-        function agregarOActualizarPedido(data) {
+        function agregarPedido(data) {
             if (pedidosActivos.has(data.id)) return;
 
             const card = document.createElement('div');
@@ -120,22 +112,18 @@
                 <div class="hora">Hora: ${horaFormateada}</div>
                 <div class="cliente">👤 Cliente: ${data.title || 'Cliente'}</div>
                 <div class="pedido">☕ Pedido: ${data.message}</div>
-                <div class="tip">(Toca o haz clic para marcar como listo)</div>
             `;
-
-            // Permite borrar haciendo clic en la tarjeta directamente en la pantalla
-            card.addEventListener('click', () => {
-                eliminarTarjeta(data.id);
-            });
 
             contenedor.prepend(card);
             pedidosActivos.set(data.id, card);
         }
 
-        function eliminarTarjeta(id) {
+        function eliminarPedido(id) {
             const card = pedidosActivos.get(id);
             if (card) {
-                card.classList.add('desapareciendo');
+                // Animación de salida fluida
+                card.style.opacity = '0';
+                card.style.transform = 'translateX(50px)';
                 setTimeout(() => {
                     card.remove();
                     pedidosActivos.delete(id);
@@ -143,50 +131,34 @@
             }
         }
 
-        // 2. Comprobar periódicamente en ntfy los mensajes borrados (Forzando sin Caché)
-        async function sincronizarConNtfy() {
-            try {
-                // _t=${Date.now()} y cache: 'no-store' evitan que el navegador guarde la respuesta vieja
-                const res = await fetch(`${NTFY_URL}/json?poll=1&_t=${Date.now()}`, {
-                    cache: 'no-store',
-                    headers: { 'Cache-Control': 'no-cache' }
-                });
+        function limpiarTodos() {
+            pedidosActivos.forEach((_, id) => eliminarPedido(id));
+        }
 
+        // 2. Sincronización de respaldo periódica (cada 2 segundos)
+        async function sincronizarConServidor() {
+            try {
+                const res = await fetch(`${NTFY_URL}/json?poll=1&_t=${Date.now()}`, { cache: 'no-store' });
                 if (!res.ok) return;
 
                 const text = await res.text();
                 const lineas = text.trim().split('\n').filter(l => l.trim().length > 0);
                 
-                const mensajesEnServidor = [];
-                for (const linea of lineas) {
-                    try {
-                        const obj = JSON.parse(linea);
-                        if (obj.event === 'message') {
-                            mensajesEnServidor.push(obj);
-                        }
-                    } catch(e) {}
-                }
+                const mensajesServidor = lineas.map(l => JSON.parse(l)).filter(m => m.event === 'message');
+                const idsVigentes = new Set(mensajesServidor.map(m => m.id));
 
-                const idsEnServidor = new Set(mensajesEnServidor.map(m => m.id));
-
-                // Si una tarjeta está en pantalla pero ya fue borrada en ntfy -> Quitarla
+                // Si está en la pantalla pero ya fue borrado del servidor de ntfy, lo quita
                 pedidosActivos.forEach((_, id) => {
-                    if (!idsEnServidor.has(id)) {
-                        eliminarTarjeta(id);
+                    if (!idsVigentes.has(id)) {
+                        eliminarPedido(id);
                     }
                 });
-
-                // Cargar mensajes vigentes
-                mensajesEnServidor.forEach(msg => agregarOActualizarPedido(msg));
-
-            } catch (err) {
-                console.error("Error en sincronización:", err);
+            } catch (e) {
+                console.error("Error de sincronización:", e);
             }
         }
 
-        // Consultar borrados cada 2 segundos
-        setInterval(sincronizarConNtfy, 2000);
-        sincronizarConNtfy();
+        setInterval(sincronizarConServidor, 2000);
     </script>
 </body>
 </html>
