@@ -64,6 +64,7 @@
         .tip { color: #888888; font-size: 0.8em; margin-top: 8px; }
     </style>
 
+    <!-- Librerías de Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
@@ -136,9 +137,9 @@
             card.innerHTML = `
                 <div class="cliente">👨‍🏫 Docente: ${docenteNombre}</div>
                 <div class="detalles">📍 Ubicación: ${aula}</div>
-                <div class="estudiante">🚶‍♂️ Encargado: ${estudiante}</div>
+                <div class="estudiante">🚶‍♂️ Recoge: ${estudiante}</div>
                 <div class="producto">✏️ Material: ${materialSolicitado}</div>
-                <div class="tip">(Haz clic cuando entregues el material para despachar)</div>
+                <div class="tip">(Haz clic para despachar y borrar de la pantalla)</div>
             `;
 
             if (vozActivada && !esCargaInicial) {
