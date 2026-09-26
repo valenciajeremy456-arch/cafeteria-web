@@ -3,169 +3,348 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Almacén - Solicitud de Materiales</title>
-    <style>
-        body {
-            background-color: #1e1e1e;
-            color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-        }
-
-        .header-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        h1 { color: #ff6b00; margin: 0; }
-        .estado { color: #00ff66; font-weight: bold; margin-bottom: 20px; }
-
-        .btn-voz {
-            background-color: #ff6b00;
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 8px;
-            font-size: 0.95em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .btn-voz:hover { background-color: #e05e00; }
-        .btn-voz.activo { background-color: #28a745; }
-
-        #lista-pedidos {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .pedido-card {
-            background-color: #2a2a2a;
-            border-left: 6px solid #ff6b00;
-            border-radius: 8px;
-            padding: 16px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            transition: all 0.3s ease;
-        }
-
-        .pedido-card:hover { background-color: #383838; }
-        .cliente { font-weight: bold; font-size: 1.1em; color: #ffffff; }
-        .detalles { font-size: 0.95em; color: #ff9d00; margin-top: 4px; font-weight: bold; }
-        .estudiante { font-size: 0.95em; color: #00e5ff; margin-top: 4px; }
-        .producto { font-size: 1.1em; color: #ffffff; margin-top: 6px; font-weight: 500; }
-        .tip { color: #888888; font-size: 0.8em; margin-top: 8px; }
-    </style>
-
-    <!-- Librerías de Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-</head>
-<body>
-
-    <div class="header-container">
-        <h1>📦 Solicitudes de Útiles y Materiales</h1>
-        <button id="btnVoz" class="btn-voz" onclick="toggleVoz()">🔇 Activar alerta por voz</button>
-    </div>
-
-    <div class="estado">🟢 Sistema de Almacén Conectado (Firebase)</div>
-
-    <div id="lista-pedidos"></div>
-
+    <title>Panel de Cocina y Despacho - Cafetería Colegial CCB</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
     <script>
-        const firebaseConfig = {
-            databaseURL: "https://cafeteria-colegia-ccb-default-rtdb.firebaseio.com"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database().ref('pedidos');
-        const contenedor = document.getElementById('lista-pedidos');
-        const btnVoz = document.getElementById('btnVoz');
-
-        let vozActivada = false;
-        let esCargaInicial = true;
-
-        function toggleVoz() {
-            vozActivada = !vozActivada;
-            if (vozActivada) {
-                btnVoz.textContent = "🔊 Alerta de Voz Activada";
-                btnVoz.classList.add("activo");
-                reproducirVoz("Sistema de alertas por voz activado");
-            } else {
-                btnVoz.textContent = "🔇 Activar alerta por voz";
-                btnVoz.classList.remove("activo");
-                window.speechSynthesis.cancel();
-            }
-        }
-
-        function reproducirVoz(texto) {
-            if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
-
-            const mensaje = new SpeechSynthesisUtterance(texto);
-            mensaje.lang = 'es-ES';
-            mensaje.rate = 1.0;
-            mensaje.pitch = 1.0;
-
-            window.speechSynthesis.speak(mensaje);
-        }
-
-        setTimeout(() => { esCargaInicial = false; }, 1500);
-
-        db.on('child_added', (snapshot) => {
-            const id = snapshot.key;
-            const data = snapshot.val();
-
-            if (document.getElementById(`pedido-${id}`)) return;
-
-            const card = document.createElement('div');
-            card.className = 'pedido-card';
-            card.id = `pedido-${id}`;
-
-            const docenteNombre = typeof data === 'object' ? (data.cliente || 'Docente') : 'Docente';
-            const aula = typeof data === 'object' ? (data.aula || 'Sin Aula') : 'Sin Aula';
-            const estudiante = typeof data === 'object' ? (data.estudiante || 'Docente retira') : 'Docente retira';
-            const materialSolicitado = typeof data === 'object' ? (data.pedido || data) : data;
-
-            card.innerHTML = `
-                <div class="cliente">👨‍🏫 Docente: ${docenteNombre}</div>
-                <div class="detalles">📍 Ubicación: ${aula}</div>
-                <div class="estudiante">🚶‍♂️ Recoge: ${estudiante}</div>
-                <div class="producto">✏️ Material: ${materialSolicitado}</div>
-                <div class="tip">(Haz clic para despachar y borrar de la pantalla)</div>
-            `;
-
-            if (vozActivada && !esCargaInicial) {
-                let textoAnuncio = `Nueva solicitud del ${aula}. ${docenteNombre} requiere ${materialSolicitado}.`;
-                if (estudiante !== 'Docente retira') {
-                    textoAnuncio += ` Recoge el estudiante ${estudiante}.`;
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fdf2f4',
+                            100: '#fbe5e9',
+                            500: '#7A1C2E',
+                            600: '#661726',
+                            700: '#52121e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
                 }
-                reproducirVoz(textoAnuncio);
             }
+        }
+    </script>
+    <style>
+        .pulse-card {
+            animation: borderPulse 2s infinite;
+        }
+        @keyframes borderPulse {
+            0% { box-shadow: 0 0 0 0 rgba(122, 28, 46, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(122, 28, 46, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(122, 28, 46, 0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans flex flex-col">
 
-            card.addEventListener('click', () => {
-                db.child(id).remove();
+    <!-- Top Navigation Header -->
+    <header class="bg-brand-500 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <!-- Logo CCB SVG -->
+                <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center p-1 shadow-inner">
+                    <svg viewBox="0 0 200 200" class="w-full h-full text-brand-500 fill-current">
+                        <circle cx="70" cy="100" r="50" fill="none" stroke="currentColor" stroke-width="16"/>
+                        <circle cx="110" cy="100" r="50" fill="none" stroke="currentColor" stroke-width="16"/>
+                        <path d="M 130 50 L 170 50 L 170 150 L 130 150 Z" />
+                        <ellipse cx="145" cy="115" rx="8" ry="12" fill="white" transform="rotate(-20 145 115)"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg md:text-xl tracking-tight leading-tight">CAFETERÍA COLEGIAL CCB</h1>
+                    <p class="text-xs text-brand-100 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        Panel de Control de Cocina & Despacho
+                    </p>
+                </div>
+            </div>
+
+            <!-- Header Controls -->
+            <div class="flex items-center space-x-3">
+                <button id="soundToggle" onclick="toggleSound()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-2 border border-brand-400/30 transition">
+                    <i id="soundIcon" class="fas fa-volume-up text-amber-300"></i>
+                    <span id="soundText" class="hidden sm:inline">Sonido Alerta: ON</span>
+                </button>
+                <div class="bg-brand-700 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide border border-brand-600">
+                    <span id="pendingCount">0</span> PEDIDOS ACTIVOS
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Dashboard -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 flex flex-col">
+        
+        <!-- Stats & Filter Bar -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            <button onclick="setFilter('ALL')" id="filter-ALL" class="filter-btn bg-white p-3 rounded-xl shadow-sm border-2 border-brand-500 text-left transition">
+                <div class="text-xs text-slate-500 uppercase font-bold">Todos</div>
+                <div id="stat-all" class="text-xl font-extrabold text-slate-800">0</div>
+            </button>
+            <button onclick="setFilter('RECIBIDO')" id="filter-RECIBIDO" class="filter-btn bg-white p-3 rounded-xl shadow-sm border border-slate-200 text-left transition">
+                <div class="text-xs text-amber-600 uppercase font-bold flex items-center gap-1">
+                    <i class="fas fa-clock"></i> Pendientes
+                </div>
+                <div id="stat-pending" class="text-xl font-extrabold text-amber-600">0</div>
+            </button>
+            <button onclick="setFilter('PREPARANDO')" id="filter-PREPARANDO" class="filter-btn bg-white p-3 rounded-xl shadow-sm border border-slate-200 text-left transition">
+                <div class="text-xs text-blue-600 uppercase font-bold flex items-center gap-1">
+                    <i class="fas fa-fire"></i> En Preparación
+                </div>
+                <div id="stat-preparing" class="text-xl font-extrabold text-blue-600">0</div>
+            </button>
+            <button onclick="setFilter('LISTO')" id="filter-LISTO" class="filter-btn bg-white p-3 rounded-xl shadow-sm border border-slate-200 text-left transition">
+                <div class="text-xs text-emerald-600 uppercase font-bold flex items-center gap-1">
+                    <i class="fas fa-check-circle"></i> Listos
+                </div>
+                <div id="stat-ready" class="text-xl font-extrabold text-emerald-600">0</div>
+            </button>
+        </div>
+
+        <!-- Orders Grid -->
+        <div id="ordersContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Empty state loader -->
+            <div class="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                <i class="fas fa-utensils text-4xl mb-3 text-slate-300 animate-bounce"></i>
+                <p class="font-medium text-slate-600">Esperando nuevos pedidos de las aulas...</p>
+                <p class="text-xs text-slate-400 mt-1">Los pedidos realizados en la app de colegio aparecerán aquí automáticamente.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-400 text-center py-3 text-xs border-t border-slate-700">
+        Cafetería Colegial CCB &copy; Panel de Control Integrado para Cocina
+    </footer>
+
+    <!-- Audio para alertas de nuevos pedidos -->
+    <audio id="alertSound" preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- App Logic & Real-Time Sync Script -->
+    <script>
+        let soundEnabled = true;
+        let activeFilter = 'ALL';
+        let previousOrdersCount = 0;
+
+        // Cargar pedidos almacenados en la base de datos local compartida
+        function getOrders() {
+            try {
+                return JSON.parse(localStorage.getItem('ccb_orders')) || [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveOrders(orders) {
+            localStorage.setItem('ccb_orders', JSON.stringify(orders));
+            // Disparar evento para actualizar otras pestañas
+            window.dispatchEvent(new Event('storage'));
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            const text = document.getElementById('soundText');
+            if(soundEnabled) {
+                icon.className = 'fas fa-volume-up text-amber-300';
+                text.innerText = 'Sonido Alerta: ON';
+            } else {
+                icon.className = 'fas fa-volume-mute text-slate-400';
+                text.innerText = 'Sonido Alerta: OFF';
+            }
+        }
+
+        function playSound() {
+            if(soundEnabled) {
+                const audio = document.getElementById('alertSound');
+                if(audio) {
+                    audio.currentTime = 0;
+                    audio.play().catch(e => console.log('Audio autoplay blocked'));
+                }
+            }
+        }
+
+        function setFilter(filter) {
+            activeFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('border-2', 'border-brand-500');
+                btn.classList.add('border', 'border-slate-200');
             });
+            document.getElementById(`filter-${filter}`).classList.remove('border-slate-200');
+            document.getElementById(`filter-${filter}`).classList.add('border-2', 'border-brand-500');
+            renderDashboard();
+        }
 
-            contenedor.prepend(card);
-        });
-
-        db.on('child_removed', (snapshot) => {
-            const id = snapshot.key;
-            const card = document.getElementById(`pedido-${id}`);
-            if (card) {
-                card.style.opacity = '0';
-                card.style.transform = 'scale(0.9)';
-                setTimeout(() => card.remove(), 300);
+        function updateStatus(orderId, newStatus) {
+            let orders = getOrders();
+            let order = orders.find(o => o.id === orderId);
+            if(order) {
+                order.status = newStatus;
+                saveOrders(orders);
+                renderDashboard();
             }
-        });
+        }
+
+        function deleteOrder(orderId) {
+            if(confirm('¿Deseas archivar/eliminar este pedido entregado?')) {
+                let orders = getOrders();
+                orders = orders.filter(o => o.id !== orderId);
+                saveOrders(orders);
+                renderDashboard();
+            }
+        }
+
+        function renderDashboard() {
+            const orders = getOrders();
+            const container = document.getElementById('ordersContainer');
+            
+            // Actualizar contadores
+            const pending = orders.filter(o => o.status === 'RECIBIDO').length;
+            const preparing = orders.filter(o => o.status === 'PREPARANDO').length;
+            const ready = orders.filter(o => o.status === 'LISTO').length;
+
+            document.getElementById('stat-all').innerText = orders.length;
+            document.getElementById('stat-pending').innerText = pending;
+            document.getElementById('stat-preparing').innerText = preparing;
+            document.getElementById('stat-ready').innerText = ready;
+            document.getElementById('pendingCount').innerText = pending + preparing;
+
+            // Reproducir sonido si hay un nuevo pedido pendiente
+            if (pending > previousOrdersCount) {
+                playSound();
+            }
+            previousOrdersCount = pending;
+
+            // Filtrar pedidos
+            let filteredOrders = orders;
+            if(activeFilter !== 'ALL') {
+                filteredOrders = orders.filter(o => o.status === activeFilter);
+            }
+
+            if(filteredOrders.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                        <i class="fas fa-check-circle text-4xl mb-3 text-emerald-400"></i>
+                        <p class="font-bold text-slate-700">Sin pedidos en esta categoría</p>
+                        <p class="text-xs text-slate-400 mt-1">Los nuevos pedidos ingresados desde el aula aparecerán aquí.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Ordenar por fecha más reciente
+            filteredOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            container.innerHTML = filteredOrders.map(order => {
+                let statusBadge = '';
+                let borderClass = 'border-slate-200';
+                let isPulse = false;
+
+                if(order.status === 'RECIBIDO') {
+                    statusBadge = `<span class="bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1"><i class="fas fa-bell animate-bounce"></i> ¡NUEVO!</span>`;
+                    borderClass = 'border-amber-400';
+                    isPulse = true;
+                } else if(order.status === 'PREPARANDO') {
+                    statusBadge = `<span class="bg-blue-100 text-blue-800 border border-blue-300 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1"><i class="fas fa-fire"></i> En Preparación</span>`;
+                    borderClass = 'border-blue-400';
+                } else if(order.status === 'LISTO') {
+                    statusBadge = `<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1"><i class="fas fa-check-circle"></i> Listo para Retirar</span>`;
+                    borderClass = 'border-emerald-400';
+                } else {
+                    statusBadge = `<span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full text-xs font-bold">Entregado</span>`;
+                }
+
+                const itemsList = order.items.map(item => `
+                    <li class="flex justify-between items-center text-sm py-1 border-b border-slate-100 last:border-0">
+                        <span class="font-medium text-slate-800"><b class="text-brand-600">${item.qty}x</b> ${item.name}</span>
+                        <span class="text-xs text-slate-500">$${(item.price * item.qty).toLocaleString()}</span>
+                    </li>
+                `).join('');
+
+                const customNote = order.note ? `
+                    <div class="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
+                        <span class="font-bold flex items-center gap-1"><i class="fas fa-sticky-note text-amber-600"></i> Nota Especial:</span>
+                        <p class="mt-0.5">${order.note}</p>
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="bg-white rounded-2xl shadow-sm border-2 ${borderClass} ${isPulse ? 'pulse-card' : ''} p-5 flex flex-col justify-between transition">
+                        <div>
+                            <!-- Header de la tarjeta -->
+                            <div class="flex justify-between items-start mb-3 pb-3 border-b border-slate-100">
+                                <div>
+                                    <span class="text-xs font-bold text-slate-400 block">${order.id}</span>
+                                    <div class="text-2xl font-black text-brand-500">SALÓN ${order.room}</div>
+                                </div>
+                                ${statusBadge}
+                            </div>
+
+                            <!-- Info del docente y alumno -->
+                            <div class="grid grid-cols-2 gap-2 text-xs mb-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                <div>
+                                    <span class="text-slate-400 block">Docente:</span>
+                                    <span class="font-bold text-slate-700">${order.teacher}</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block">Encargado Recogida:</span>
+                                    <span class="font-bold text-emerald-700">${order.student}</span>
+                                </div>
+                            </div>
+
+                            <!-- Lista de productos -->
+                            <div class="my-3">
+                                <div class="text-xs font-bold uppercase text-slate-400 mb-1">Items del pedido:</div>
+                                <ul class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                    ${itemsList}
+                                </ul>
+                            </div>
+
+                            ${customNote}
+                        </div>
+
+                        <!-- Botones de Acción de Estado -->
+                        <div class="mt-4 pt-3 border-t border-slate-100">
+                            <div class="flex justify-between items-center text-xs text-slate-500 mb-2">
+                                <span>Total: <b class="text-slate-800 text-sm">$${order.total.toLocaleString()}</b></span>
+                                <span>${order.time}</span>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-1.5 mt-2">
+                                <button onclick="updateStatus('${order.id}', 'PREPARANDO')" 
+                                    class="py-2 px-1 text-xs font-bold rounded-lg transition ${order.status === 'PREPARANDO' ? 'bg-blue-600 text-white shadow' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}">
+                                    <i class="fas fa-fire"></i> Cocinando
+                                </button>
+                                <button onclick="updateStatus('${order.id}', 'LISTO')" 
+                                    class="py-2 px-1 text-xs font-bold rounded-lg transition ${order.status === 'LISTO' ? 'bg-emerald-600 text-white shadow' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}">
+                                    <i class="fas fa-bell"></i> Listo
+                                </button>
+                                <button onclick="deleteOrder('${order.id}')" 
+                                    class="py-2 px-1 text-xs font-bold bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 rounded-lg transition">
+                                    <i class="fas fa-check"></i> Entregado
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Escuchar cambios de datos en tiempo real desde la otra página (`pagina-de-la-app`)
+        window.addEventListener('storage', renderDashboard);
+        setInterval(renderDashboard, 2000); // Polling secundario
+
+        // Inicializar dashboard al cargar la página
+        document.addEventListener('DOMContentLoaded', renderDashboard);
     </script>
 </body>
-</html> 
+</html>
